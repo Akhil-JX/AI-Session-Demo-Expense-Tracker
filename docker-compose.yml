@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: expense-tracker-db
+    environment:
+      POSTGRES_USER: sail_user
+      POSTGRES_PASSWORD: sail_password
+      POSTGRES_DB: expense_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sail_user -d expense_tracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: expense-tracker-api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://sail_user:sail_password@postgres:5432/expense_tracker
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev:server
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: expense-tracker-ui
+    ports:
+      - "3000:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3001
+    command: npm run dev:client
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: expense-tracker-network
